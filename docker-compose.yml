@@ -1,0 +1,44 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: kostia
+      POSTGRES_PASSWORD: foDfyf-vufvim-muvwy9
+      POSTGRES_DB: randevu_database
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_DEFAULT_EMAIL: konstantin55121@gmail.com
+      PGADMIN_DEFAULT_PASSWORD: Hahwyv-hyfgo4-piznid
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    ports:
+      - "8080:80"
+    depends_on:
+      - db
+    
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8090:8090"
+    environment:
+      - DB_HOST=localhost
+      - DB_PORT=5432
+      - DB_USER=kostia
+      - DB_PASSWORD=foDfyf-vufvim-muvwy9
+      - DB_NAME=randevu_database
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
+  pgadmin_data:

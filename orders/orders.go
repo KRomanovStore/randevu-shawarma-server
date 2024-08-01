@@ -90,58 +90,52 @@ func UpdateOrder(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	defer tx.Rollback()
 
 	if updateData.Sold {
-		// Fetch order dishes
-		rows, err := tx.Query(
-			"SELECT dish_id, quantity FROM public.\"Order_dish_relations\" WHERE order_id = $1",
-			updateData.OrderID,
+		// Fetch products
+		query := `
+		WITH product_quantities AS (
+			SELECT dr.product_id, SUM(dr.quantity * odr.quantity) AS total_quantity
+			FROM public."Order_dish_relations" odr
+			INNER JOIN public."Dish_recipe" dr ON odr.dish_id = dr.dish_id
+			WHERE odr.order_id = $1
+			GROUP BY dr.product_id
+			UNION ALL
+			SELECT pr.product_id, SUM(pr.quantity * odr.quantity) AS total_quantity
+			FROM public."Order_dish_relations" odr
+			INNER JOIN public."Dishes_Preparations" dp ON odr.dish_id = dp.dishes_id
+			INNER JOIN public."Preparation_recipe" pr ON dp.preparations_id = pr.preparation_id
+			WHERE odr.order_id = $1
+			GROUP BY pr.product_id
 		)
+		SELECT product_id, SUM(total_quantity) AS total_quantity
+		FROM product_quantities
+		GROUP BY product_id
+		`
+
+		rows, err := db.Query(query, updateData.OrderID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		defer rows.Close()
 
-		var dishID int
-		var quantity int
+		var productID int
+		var totalQuantity float64
 
 		// Update warehouse inventory
 		for rows.Next() {
-			err := rows.Scan(&dishID, &quantity)
+			err := rows.Scan(&productID, &totalQuantity)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 
-			// Fetch dish recipe
-			recipeRows, err := tx.Query(
-				"SELECT product_id, quantity FROM public.\"Dish_recipe\" WHERE dish_id = $1",
-				dishID,
+			_, err = tx.Exec(
+				"UPDATE public.\"Warehouse\" SET current_stock = current_stock - $1 WHERE product_id = $2",
+				totalQuantity, productID,
 			)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
-			}
-			defer recipeRows.Close()
-
-			var productID int
-			var productQuantity float64
-
-			for recipeRows.Next() {
-				err := recipeRows.Scan(&productID, &productQuantity)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
-
-				// Update warehouse
-				_, err = tx.Exec(
-					"UPDATE public.\"Warehouse\" SET current_stock = current_stock - $1 WHERE product_id = $2",
-					productQuantity*float64(quantity), productID,
-				)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
 			}
 		}
 
