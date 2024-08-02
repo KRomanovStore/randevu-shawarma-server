@@ -20,11 +20,73 @@ func SetDatabase(database *sql.DB) {
 
 // RegisterRoutes registers all orders routes
 func RegisterRoutes(router *httprouter.Router) {
+	router.GET("/orders", users.Authenticate(GetOrders))
 	router.POST("/orders", users.Authenticate(CreateOrder))
 	router.PUT("/orders", users.Authenticate(UpdateOrder))
 }
 
-func CreateOrder(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func GetOrders(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	query := `
+		SELECT o.id, o.user_id, o.name, SUM(d.price * odr.quantity) AS total_price
+		FROM public."Orders" o
+		JOIN public."Order_dish_relations" odr ON o.id = odr.order_id
+		JOIN public."Dishes" d ON odr.dish_id = d.id
+		WHERE o.processing = true
+		GROUP BY o.id, o.user_id, o.name
+	`
+	rows, err := db.Query(query)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var orders []OrderView
+	for rows.Next() {
+		var order OrderView
+		err := rows.Scan(&order.ID, &order.UserID, &order.Name, &order.TotalPrice)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		dishQuery := `
+			SELECT d.id, d.name, odr.quantity, d.price
+			FROM public."Order_dish_relations" odr
+			JOIN public."Dishes" d ON odr.dish_id = d.id
+			WHERE odr.order_id = $1
+		`
+		dishRows, err := db.Query(dishQuery, order.ID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer dishRows.Close()
+
+		var dishes []OrderDishRelationView
+		for dishRows.Next() {
+			var dish OrderDishRelationView
+			err := dishRows.Scan(&dish.DishID, &dish.DishName, &dish.Quantity, &dish.Price)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			dishes = append(dishes, dish)
+		}
+		order.Dishes = dishes
+		orders = append(orders, order)
+	}
+
+	if err := rows.Err(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(orders)
+}
+
+func CreateOrder(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	var newOrder Order
 	err := json.NewDecoder(r.Body).Decode(&newOrder)
 	if err != nil {
@@ -66,14 +128,12 @@ func CreateOrder(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(newOrder)
+	GetOrders(w, r, ps)
 }
 
-func UpdateOrder(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func UpdateOrder(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	var updateData struct {
-		OrderID int  `json:"order_id"`
+		OrderID int  `json:"orderId"`
 		Sold    bool `json:"sold"`
 	}
 	err := json.NewDecoder(r.Body).Decode(&updateData)
@@ -166,5 +226,5 @@ func UpdateOrder(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	GetOrders(w, r, ps)
 }

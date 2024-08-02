@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"randevu-shawarma-server/users"
+	"randevu-shawarma-server/warehouse"
 
 	"github.com/julienschmidt/httprouter"
 )
@@ -23,7 +24,7 @@ func RegisterRoutes(router *httprouter.Router) {
 	router.POST("/write-off", users.Authenticate(CreateWriteOff))
 }
 
-func CreateWriteOff(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func CreateWriteOff(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	var newWriteOff WriteOff
 	err := json.NewDecoder(r.Body).Decode(&newWriteOff)
 	if err != nil {
@@ -99,6 +100,5 @@ func CreateWriteOff(w http.ResponseWriter, r *http.Request, _ httprouter.Params)
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(newWriteOff)
+	warehouse.GetWarehouse(w, r, ps)
 }

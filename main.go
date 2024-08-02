@@ -8,9 +8,11 @@ import (
 	"github.com/julienschmidt/httprouter"
 	_ "github.com/lib/pq"
 
+	"randevu-shawarma-server/dishes"
 	"randevu-shawarma-server/orders"
 	"randevu-shawarma-server/supply"
 	"randevu-shawarma-server/users"
+	"randevu-shawarma-server/warehouse"
 	"randevu-shawarma-server/writeoff"
 )
 
@@ -45,6 +47,25 @@ func initDB() *sql.DB {
 	return db
 }
 
+func setupCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Set the headers for CORS
+		w.Header().Set("Access-Control-Allow-Origin", "https://localhost:5173")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+		// Handle preflight requests
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		// Pass the request to the next handler
+		next.ServeHTTP(w, r)
+	})
+}
+
 func main() {
 	db := initDB()
 	defer db.Close()
@@ -53,12 +74,18 @@ func main() {
 	supply.SetDatabase(db)
 	writeoff.SetDatabase(db)
 	orders.SetDatabase(db)
+	warehouse.SetDatabase(db)
+	dishes.SetDatabase(db)
 
 	router := httprouter.New()
 	users.RegisterRoutes(router)
 	supply.RegisterRoutes(router)
 	writeoff.RegisterRoutes(router)
 	orders.RegisterRoutes(router)
+	warehouse.RegisterRoutes(router)
+	dishes.RegisterRoutes(router)
 
-	log.Fatal(http.ListenAndServe(":8090", router))
+	corsRouter := setupCORS(router)
+
+	log.Fatal(http.ListenAndServe(":8090", corsRouter))
 }

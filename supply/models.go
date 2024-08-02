@@ -6,14 +6,14 @@ import (
 
 type Supply struct {
 	ID        int                     `json:"id"`
-	UserID    int                     `json:"user_id"`
-	CreatedAt time.Time               `json:"created_at"`
+	UserID    int                     `json:"userId"`
+	CreatedAt time.Time               `json:"createdAt"`
 	Products  []SupplyProductRelation `json:"products"`
 }
 
 type SupplyProductRelation struct {
-	SupplyID  int     `json:"supply_id"`
-	ProductID int     `json:"product_id"`
+	SupplyID  int     `json:"supplyId"`
+	ProductID int     `json:"productId"`
 	Quantity  float64 `json:"quantity"`
 	Price     string  `json:"price"`
 }

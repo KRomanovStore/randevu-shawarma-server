@@ -6,14 +6,14 @@ import (
 
 type WriteOff struct {
 	ID        int                       `json:"id"`
-	UserID    int                       `json:"user_id"`
-	CreatedAt time.Time                 `json:"created_at"`
+	UserID    int                       `json:"userId"`
+	CreatedAt time.Time                 `json:"createdAt"`
 	Notes     string                    `json:"notes"`
 	Products  []WriteOffProductRelation `json:"products"`
 }
 
 type WriteOffProductRelation struct {
-	WriteOffID int     `json:"write_off_id"`
-	ProductID  int     `json:"product_id"`
+	WriteOffID int     `json:"writeOffId"`
+	ProductID  int     `json:"productId"`
 	Quantity   float64 `json:"quantity"`
 }
